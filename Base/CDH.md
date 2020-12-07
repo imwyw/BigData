@@ -1,22 +1,27 @@
 <!-- TOC -->
 
 - [CDH](#cdh)
-    - [资源下载](#资源下载)
-    - [网络配置](#网络配置)
-    - [时间同步及JDK](#时间同步及jdk)
-        - [更改yum源](#更改yum源)
-        - [时钟同步](#时钟同步)
+  - [资源下载](#资源下载)
+  - [网络配置](#网络配置)
+  - [时间同步及JDK](#时间同步及jdk)
+    - [更改yum源](#更改yum源)
+    - [时钟同步](#时钟同步)
     - [JDK安装](#jdk安装)
-    - [mysql tar包离线安装](#mysql-tar包离线安装)
-        - [创建用户](#创建用户)
-        - [mysql.tar上传和解包](#mysqltar上传和解包)
-        - [更改mysql所属用户和组](#更改mysql所属用户和组)
-        - [修改my.cnf配置](#修改mycnf配置)
-        - [安装和初始化](#安装和初始化)
-        - [环境变量](#环境变量)
-        - [修改密码](#修改密码)
-        - [远程访问](#远程访问)
-        - [开机启动](#开机启动)
+  - [mysql tar包离线安装](#mysql-tar包离线安装)
+    - [创建用户](#创建用户)
+    - [mysql.tar上传和解包](#mysqltar上传和解包)
+    - [更改mysql所属用户和组](#更改mysql所属用户和组)
+    - [修改my.cnf配置](#修改mycnf配置)
+    - [安装和初始化](#安装和初始化)
+    - [环境变量](#环境变量)
+    - [修改密码](#修改密码)
+    - [远程访问](#远程访问)
+    - [开机启动](#开机启动)
+  - [其他节点](#其他节点)
+  - [免密登录](#免密登录)
+  - [httpd服务](#httpd服务)
+    - [安装httpd服务](#安装httpd服务)
+    - [配置parcels](#配置parcels)
 
 <!-- /TOC -->
 
@@ -439,13 +444,139 @@ mysqld         	0:关	1:关	2:开	3:开	4:开	5:开	6:关
 
 ```
 
+<a id="markdown-其他节点" name="其他节点"></a>
+## 其他节点
+
+机器名 | IP | 备注
+----|----|---
+master | 192.168.217.150 | 主节点 centos 7.6
+node001 | 192.168.217.151 | 子节点 centos 7.6
+node002 | 192.168.217.152 | 子节点 centos 7.6
+
+使用vmware克隆两个虚拟机重新生成mac地址，并修改ip和network相关配置。
+
+```shell
+hostnamectl set-hostname node001
+hostname node001
+```
+
+
+修改ip地址：
+```shell
+vi /etc/sysconfig/network-scripts/ifcfg-ens33
+# 修改为151
+# IPADDR=192.168.217.151
+# 注释掉UUID，克隆主机防止重复
+#UUID=fc598c8e-a7c7-4a13-a9ca-xxxxxxxxxxx
+```
+
+```shell
+[root@master ~]# vi /etc/sysconfig/network
+```
+
+修改主机名称：
+
+```shell
+NETWORKING=yes
+HOSTNAME=node001
+```
+
+更新hosts文件
+
+```shell
+vi /etc/hosts
+```
+
+```
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+192.168.217.150 master
+192.168.217.151 node001
+192.168.217.152 node002
+```
+
+<a id="markdown-免密登录" name="免密登录"></a>
+## 免密登录
+在master主机上生成密钥
+
+参考 [免密登录](基础环境.md#免密登录)
+
+<a id="markdown-httpd服务" name="httpd服务"></a>
+## httpd服务
+
+<a id="markdown-安装httpd服务" name="安装httpd服务"></a>
+### 安装httpd服务
+master主机节点安装httpd服务
+
+```shell
+# 安装 httpd 服务
+[root@master ~]# yum install -y httpd
+# 启动 httpd 服务
+[root@master ~]# service httpd start
+# 设置开机启动
+[root@master ~]# chkconfig httpd on
+```
+
+<a id="markdown-配置parcels" name="配置parcels"></a>
+### 配置parcels
+
+```shell
+[root@master ~]# cd /var/www/html
+[root@master html]# mkdir parcels
+[root@master html]# cd /var/ftp/pub/
+[root@master pub]# ll
+总用量 3094320
+-rw------- 1 ftp ftp 2127506677 12月  7 16:37 CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel
+-rw------- 1 ftp ftp         41 12月  7 16:37 CDH-5.16.1-1.cdh5.16.1.p0.3-xenial.parcel.sha
+-rw------- 1 ftp ftp 1041013234 12月  7 16:37 cm5.16.1-centos7.tar.gz
+-rw------- 1 ftp ftp      56892 12月  7 16:37 manifest.json
+[root@master pub]# mv CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel /var/www/html/parcels/
+[root@master pub]# mv CDH-5.16.1-1.cdh5.16.1.p0.3-xenial.parcel.sha /var/www/html/parcels/
+[root@master pub]# mv manifest.json /var/www/html/parcels/
+```
+
+创建cm文件
+
+```shell
+[root@master parcels]# cd /var/www/html/
+# 在/var/www/html创建cm5/redhat/7/x86_64/文件夹（和官网一样的路径）
+[root@master html]# mkdir -p cm5/redhat/7/x86_64/
+[root@master html]# mv /var/ftp/pub/cm5.16.1-centos7.tar.gz /var/www/html/
+[root@master html]# ll
+总用量 1016616
+drwxr-xr-x 3 root root         20 12月  7 16:49 cm5
+-rw------- 1 ftp  ftp  1041013234 12月  7 16:37 cm5.16.1-centos7.tar.gz
+drwxr-xr-x 2 root root        126 12月  7 16:48 parcels
+[root@master html]# tar -zxvf cm5.16.1-centos7.tar.gz 
+
+[root@master html]# ll
+总用量 1016616
+drwxrwxr-x 3 1106  592        121 11月 21 2018 cm
+drwxr-xr-x 3 root root         20 12月  7 16:49 cm5
+-rw------- 1 ftp  ftp  1041013234 12月  7 16:37 cm5.16.1-centos7.tar.gz
+drwxr-xr-x 2 root root        126 12月  7 16:48 parcels
+
+# 将解压好的文件夹移动到上述创建的文件夹下
+[root@master html]# mv cm /var/www/html/cm5/redhat/7/x86_64/
+
+# 配置本地的yum源,cdh集群在安装时会就从本地down包,不会从官网了，所有节点都要执行
+[root@master html]# vi /etc/yum.repos.d/cloudera-manager.repo
+```
+
+```
+[cloudera-manager]
+name = Cloudera Manager, Version 5.16.1
+baseurl = http://192.168.217.150/cm5/redhat/7/x86_64/cm/5/
+gpgcheck = 0
+```
+
 
 ---
 
 参考引用：
 
-https://www.cnblogs.com/yangshibiao/p/10862632.html
-
+[CentOS7安装CDH 第五章：CDH的安装和部署-CDH5.7.0](https://www.cnblogs.com/yangshibiao/p/10862656.html)
 
 [手把手部署CDH(5.12.1)完全离线模式安装超级详细攻略](https://www.jianshu.com/p/f25b81772142)
 
