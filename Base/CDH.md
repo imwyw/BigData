@@ -22,6 +22,14 @@
   - [httpd服务](#httpd服务)
     - [安装httpd服务](#安装httpd服务)
     - [配置parcels](#配置parcels)
+  - [安装CM的server和daemons](#安装cm的server和daemons)
+  - [元数据库的创建](#元数据库的创建)
+    - [创建与授权](#创建与授权)
+    - [上传mysql-connector-java](#上传mysql-connector-java)
+  - [启动cloudera-scm-server服务并查看日志](#启动cloudera-scm-server服务并查看日志)
+  - [ClouderaManager管理](#clouderamanager管理)
+    - [cm-web界面](#cm-web界面)
+    - [CDH集群配置](#cdh集群配置)
 
 <!-- /TOC -->
 
@@ -571,6 +579,146 @@ baseurl = http://192.168.217.150/cm5/redhat/7/x86_64/cm/5/
 gpgcheck = 0
 ```
 
+```shell
+# 重新建立缓存
+[root@master ~]# yum makecache
+# 推送至其他节点
+[root@master yum.repos.d]# scp /etc/yum.repos.d/cloudera-manager.repo node001:/etc/yum.repos.d/
+[root@master yum.repos.d]# scp /etc/yum.repos.d/cloudera-manager.repo node002:/etc/yum.repos.d/
+```
+
+<a id="markdown-安装cm的server和daemons" name="安装cm的server和daemons"></a>
+## 安装CM的server和daemons
+
+```shell
+# 进入上述创建的CM的文件目录下
+[root@master ~]# cd /var/www/html/cm5/redhat/7/x86_64/cm/5.16.1/RPMS/x86_64/
+# 安装cloudera-manager-daemons
+[root@master x86_64]# yum install -y cloudera-manager-daemons-5.16.1-1.cm5161.p0.1.el7.x86_64.rpm
+# 安装cloudera-manager-server-，不用安装db版本的，生产环境中是使用MySQL数据库的
+[root@master x86_64]# yum install -y cloudera-manager-server-5.16.1-1.cm5161.p0.1.el7.x86_64.rpm
+```
+
+<a id="markdown-元数据库的创建" name="元数据库的创建"></a>
+## 元数据库的创建
+
+<a id="markdown-创建与授权" name="创建与授权"></a>
+### 创建与授权
+在master节点通过命令行创建mysql数据库：
+
+```sql
+-- 创建cmf用户，并创建cmf数据库，此数据库需在CDH的数据库配置文件中配置
+create database cmf DEFAULT CHARACTER SET utf8;
+grant all on cmf.* TO 'cmf'@'%' IDENTIFIED BY '123456';
+flush privileges;
+
+-- 创建其他数据库，并授权
+create database amon DEFAULT CHARACTER SET utf8;
+grant all on amon.* TO 'amon'@'%' IDENTIFIED BY '123456';
+flush privileges;
+    
+create database hive DEFAULT CHARSET SET utf8;
+grant all on hive.* TO 'hive'@'%' IDENTIFIED BY '123456';
+flush privileges;
+    
+create database oozie DEFAULT CHARSET SET utf8;
+grant all on oozie.* TO 'oozie'@'%' IDENTIFIED BY '123456';
+flush privileges;
+
+create database hue DEFAULT CHARACTER SET utf8;
+grant all on hue.* TO 'hue'@'%' IDENTIFIED BY '123456';
+flush privileges;
+```
+
+如果需要root用户可访问所有数据库，执行下面的命令：
+
+```sql
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%';
+flush privileges;
+```
+
+修改CDH关于数据库的配置文件：
+
+```shell
+vi /etc/cloudera-scm-server/db.properties
+```
+
+新增以下配置，注意ip地址和数据库的密码同步更新：
+
+```
+com.cloudera.cmf.db.setupType=EXTERNAL
+com.cloudera.cmf.db.host=192.168.217.150:3306
+com.cloudera.cmf.db.name=cmf
+com.cloudera.cmf.db.user=cmf
+com.cloudera.cmf.db.password=123456
+```
+
+<a id="markdown-上传mysql-connector-java" name="上传mysql-connector-java"></a>
+### 上传mysql-connector-java
+
+在所有节点上执行上传操作，将jar包上传至【/usr/share/java】，并统一名称为：【mysql-connector-java.jar】
+
+```shell
+[root@master ~]# cd /usr/share/java
+[root@master java]# mv mysql-connector-java-5.1.48.jar mysql-connector-java.jar
+[root@master java]# mv mysql-connector-java-5.1.48.jar mysql-connector-java.jar
+
+[root@master java]# ssh node001 mkdir -p /usr/share/java
+[root@master java]# ssh node002 mkdir -p /usr/share/java
+
+[root@master java]# scp mysql-connector-java.jar node001:/usr/share/java/
+[root@master java]# scp mysql-connector-java.jar node002:/usr/share/java/
+```
+
+<a id="markdown-启动cloudera-scm-server服务并查看日志" name="启动cloudera-scm-server服务并查看日志"></a>
+## 启动cloudera-scm-server服务并查看日志
+
+```shell
+#启动
+service cloudera-scm-server start
+service cloudera-scm-server status
+
+#在启动时有可能碰到The server time zone value 'EDT' is unrecognized异常，这是mysql的时区和系统的时区不匹配，可以参考如下网站解决
+#https://blog.csdn.net/u010003835/article/details/88974898
+
+#查看日志
+cd /var/log/cloudera-scm-server/
+tail -f cloudera-scm-server.log
+# 出现如下7180即证明启动成功
+#WebServerImpl:org.mortbay.log: Started SelectChannelConnector@0.0.0.0:7180
+```
+
+检查cmf下自动创建的表：
+
+![](../assets/Hadoop/cloudera-cmf-auto-create.png)
+
+<a id="markdown-clouderamanager管理" name="clouderamanager管理"></a>
+## ClouderaManager管理
+
+<a id="markdown-cm-web界面" name="cm-web界面"></a>
+### cm-web界面
+
+浏览器中登录管理页面：http://192.168.217.150:7180/cmf/login
+
+默认用户名和密码均为：admin
+
+神奇的事情，chrome竟然无法看到【许可条款和条件】页面，从而导致无法点击【继续】
+
+换其他浏览器跳过此步骤，选择免费【ClouderaExpress】版本测试：
+
+![](../assets/Hadoop/cm-版本选择.png)
+
+为 CDH 群集安装指定主机：
+
+![](../assets/Hadoop/cm-指定主机.png)
+
+<a id="markdown-cdh集群配置" name="cdh集群配置"></a>
+### CDH集群配置
+选择存储库：
+
+
+
+
 
 ---
 
@@ -583,8 +731,6 @@ gpgcheck = 0
 [CDH5与CDH6对比](https://cloud.tencent.com/developer/article/1419293)
 
 [Cloudera Manager安装部署](https://blog.csdn.net/lukabruce/article/details/80805929)
-
-https://www.cnblogs.com/zhjh256/p/10740036.html
 
 [CDH搭建大数据集群（5.10.0）](https://www.cnblogs.com/rmxd/p/11343704.html)
 
