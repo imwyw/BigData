@@ -232,7 +232,7 @@ basedir=/usr/local/mysql
 datadir=/usr/local/mysql/data
 # 允许最大连接数
 max_connections=200
-# 服务端使用的字符集默认为8比特编码的latin1字符集
+# 服务端使用的字符集默认为utf8编码
 character-set-server=utf8
 # 创建新表时将使用的默认存储引擎
 default-storage-engine=INNODB
@@ -536,11 +536,11 @@ master主机节点安装httpd服务
 [root@master pub]# ll
 总用量 3094320
 -rw------- 1 ftp ftp 2127506677 12月  7 16:37 CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel
--rw------- 1 ftp ftp         41 12月  7 16:37 CDH-5.16.1-1.cdh5.16.1.p0.3-xenial.parcel.sha
+-rw------- 1 ftp ftp         41 12月  7 16:37 CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel.sha
 -rw------- 1 ftp ftp 1041013234 12月  7 16:37 cm5.16.1-centos7.tar.gz
 -rw------- 1 ftp ftp      56892 12月  7 16:37 manifest.json
 [root@master pub]# mv CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel /var/www/html/parcels/
-[root@master pub]# mv CDH-5.16.1-1.cdh5.16.1.p0.3-xenial.parcel.sha /var/www/html/parcels/
+[root@master pub]# mv CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel.sha /var/www/html/parcels/
 [root@master pub]# mv manifest.json /var/www/html/parcels/
 ```
 
