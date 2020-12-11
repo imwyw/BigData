@@ -714,7 +714,44 @@ tail -f cloudera-scm-server.log
 
 <a id="markdown-cdh集群配置" name="cdh集群配置"></a>
 ### CDH集群配置
+
+1. 将parcels文件拷贝至【/opt/cloudera/parcel-repo】
+
+```shell
+cp /var/www/html/parcels/CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel /opt/cloudera/parcel-repo
+cp /var/www/html/parcels/CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel.sha /opt/cloudera/parcel-repo
+```
+
 选择存储库：
+
+![](../assets/Hadoop/cm-存储库设置.png)
+![](../assets/Hadoop/cm-自定义存储库设置.png)
+
+2. JDK 安装选项,以之前安装好的默认JDK即可，无需重复安装。
+3. 单用户模式，默认即可
+4. 提供 SSH 登录凭据，可以自由选择，这里直接使用root用户和密码登录
+5. 集群安装
+
+![](../assets/Hadoop/cm-集群安装.png)
+
+6. 安装选定Parcel，先前配置的Parcel就作用于此处，否则从线上下载会很慢。
+7. 检查主机正确性，一般来说此步会存在swap设置和大页面2个问题，可以使用如下代码在每个主机上进行配置，然后重新检测即可：
+
+```shell
+# 关闭大页面
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+echo 'echo never > /sys/kernel/mm/transparent_hugepage/defrag'>>  /etc/rc.local
+echo 'echo never > /sys/kernel/mm/transparent_hugepage/enabled'>>  /etc/rc.local
+
+# 设置swap
+echo 'vm.swappiness = 10' >> /etc/sysctl.conf
+sysctl -p
+```
+
+
+
+
 
 
 
