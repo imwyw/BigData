@@ -773,3 +773,5 @@ sysctl -p
 
 [大数据之CM+CDH5.16.1（二）](https://www.jianshu.com/p/8bbd2603b6bd)
 
+[Cloudera Manager安装 & 搭建CDH集群](https://blog.csdn.net/oschina_41140683/article/details/81211635)
+
