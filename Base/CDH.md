@@ -606,6 +606,13 @@ gpgcheck = 0
 ### 创建与授权
 在master节点通过命令行创建mysql数据库：
 
+```shell
+[root@master ~]# mysql -uroot -p
+Enter password: 
+
+mysql> use mysql
+```
+
 ```sql
 -- 创建cmf用户，并创建cmf数据库，此数据库需在CDH的数据库配置文件中配置
 create database cmf DEFAULT CHARACTER SET utf8;
@@ -617,11 +624,11 @@ create database amon DEFAULT CHARACTER SET utf8;
 grant all on amon.* TO 'amon'@'%' IDENTIFIED BY '123456';
 flush privileges;
     
-create database hive DEFAULT CHARSET SET utf8;
+create database hive DEFAULT CHARACTER SET utf8;
 grant all on hive.* TO 'hive'@'%' IDENTIFIED BY '123456';
 flush privileges;
     
-create database oozie DEFAULT CHARSET SET utf8;
+create database oozie DEFAULT CHARACTER SET utf8;
 grant all on oozie.* TO 'oozie'@'%' IDENTIFIED BY '123456';
 flush privileges;
 
@@ -659,8 +666,12 @@ com.cloudera.cmf.db.password=123456
 在所有节点上执行上传操作，将jar包上传至【/usr/share/java】，并统一名称为：【mysql-connector-java.jar】
 
 ```shell
+[root@master ~]# mkdir -p /usr/share/java
 [root@master ~]# cd /usr/share/java
-[root@master java]# mv mysql-connector-java-5.1.48.jar mysql-connector-java.jar
+# 上传 mysql-connector-java-5.1.48.tar.gz 文件
+[root@master ~]# rz
+[root@master java]# tar -zxvf mysql-connector-java-5.1.48.tar.gz
+[root@master java]# mv mysql-connector-java-5.1.48/mysql-connector-java-5.1.48.jar ./mysql-connector-java.jar
 [root@master java]# mv mysql-connector-java-5.1.48.jar mysql-connector-java.jar
 
 [root@master java]# ssh node001 mkdir -p /usr/share/java
@@ -720,6 +731,11 @@ tail -f cloudera-scm-server.log
 ```shell
 cp /var/www/html/parcels/CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel /opt/cloudera/parcel-repo
 cp /var/www/html/parcels/CDH-5.16.1-1.cdh5.16.1.p0.3-el7.parcel.sha /opt/cloudera/parcel-repo
+
+# 修改权限
+chown -R cloudera-scm:cloudera-scm /opt/cloudera/parcel-repo/*
+# 重启服务
+service cloudera-scm-server restart
 ```
 
 选择存储库：
@@ -775,3 +791,4 @@ sysctl -p
 
 [Cloudera Manager安装 & 搭建CDH集群](https://blog.csdn.net/oschina_41140683/article/details/81211635)
 
+[centos7 无法启动网络(service network restart)错误解决办法](https://www.cnblogs.com/spmt/p/10662243.html)
