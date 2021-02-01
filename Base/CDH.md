@@ -30,6 +30,13 @@
   - [ClouderaManager管理](#clouderamanager管理)
     - [cm-web界面](#cm-web界面)
     - [CDH集群配置](#cdh集群配置)
+  - [FAQ](#faq)
+    - [HDFS副本不足](#hdfs副本不足)
+  - [Navigator数据治理](#navigator数据治理)
+    - [navigator元数据库](#navigator元数据库)
+    - [mysql-connector-java](#mysql-connector-java)
+    - [navigator配置](#navigator配置)
+  - [虚拟机脚本备份](#虚拟机脚本备份)
 
 <!-- /TOC -->
 
@@ -685,9 +692,12 @@ com.cloudera.cmf.db.password=123456
 ## 启动cloudera-scm-server服务并查看日志
 
 ```shell
-#启动
+# 启动
 service cloudera-scm-server start
 service cloudera-scm-server status
+
+# 重新启动
+service cloudera-scm-server restart
 
 #在启动时有可能碰到The server time zone value 'EDT' is unrecognized异常，这是mysql的时区和系统的时区不匹配，可以参考如下网站解决
 #https://blog.csdn.net/u010003835/article/details/88974898
@@ -765,6 +775,127 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 ```
 
+<a id="markdown-faq" name="faq"></a>
+## FAQ
+
+<a id="markdown-hdfs副本不足" name="hdfs副本不足"></a>
+### HDFS副本不足
+
+HDFS-副本不足的块，报错信息：
+
+测试 HDFS 是否具有过多副本不足块。
+
+不良 : 群集中有 8 个 副本不足的块 块。群集中共有 11 个块。百分比 副本不足的块: 72.73%。 临界阈值：40.00%。
+
+原因：设置的副本备份数与DataNode的个数不同。
+
+点击集群-HDFS-配置，搜索 dfs.replication ,设置为2后保存更改。
+
+dfs.replication这个参数其实只在文件被写入dfs时起作用，虽然更改了配置文件，但是不会改变之前写入的文件的备份数。
+
+所以我们还需要步骤2，在cm0中通过命令更改备份数：
+
+这里的-R 2的数字2就对应我们的DataNode个数。
+
+```shell
+[root@master /]# su hdfs
+[hdfs@master /]$ hadoop fs -setrep -R 2 /
+```
+
+<a id="markdown-navigator数据治理" name="navigator数据治理"></a>
+## Navigator数据治理
+
+需要升级至 Enterprise Edition ，基本版Express不支持。
+
+<a id="markdown-navigator元数据库" name="navigator元数据库"></a>
+### navigator元数据库
+
+```shell
+[root@master ~]# mysql -uroot -p
+Enter password: 
+
+mysql> use mysql
+```
+
+```sql
+create database nms default character set utf8;
+CREATE USER 'nms'@'%' IDENTIFIED BY '123456';
+GRANT ALL PRIVILEGES ON nms. * TO 'nms'@'%';
+FLUSH PRIVILEGES;
+
+create database nas default character set utf8;
+CREATE USER 'nas'@'%' IDENTIFIED BY '123456';
+GRANT ALL PRIVILEGES ON nas. * TO 'nas'@'%';
+FLUSH PRIVILEGES;
+
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%';
+FLUSH PRIVILEGES;
+```
+
+<a id="markdown-mysql-connector-java" name="mysql-connector-java"></a>
+### mysql-connector-java
+
+通过软链接方式或者修改文件名称存放 【/usr/share/java/mysql-connector-java.jar】
+
+```shell
+cd /usr/share/java/
+ln -s mysql-connector-java-5.1.34.jar mysql-connector-java.jar
+```
+
+使用管理员登录Cloudera Manager的WEB界面，进入Cloudera Management Service服务
+
+进入实例界面，添加角色实例，选择“Navigator Metadata Server”和“Navigator Audit Server”角色部署的节点
+
+安装完成后，选择“Navigator Audit Server”和“Navigator Metadata Server”服务启动角色。
+
+
+<a id="markdown-navigator配置" name="navigator配置"></a>
+### navigator配置
+
+参考此内容进行配置 ：[Navigator的使用](https://cloud.tencent.com/developer/article/1079092)
+
+<a id="markdown-虚拟机脚本备份" name="虚拟机脚本备份"></a>
+## 虚拟机脚本备份
+
+三台虚拟机：
+
+ip | host-name | RAM
+---|------|----
+10.2.14.226 | KG-FMS-226 | 16G
+10.2.14.227 | KG-FMS-227 | 8G
+10.2.14.228 | KG-FMS-228 | 8G
+
+
+```shell
+vi /etc/hosts
+
+10.2.14.226 KG-FMS-226
+10.2.14.227 KG-FMS-227
+10.2.14.228 KG-FMS-228
+```
+
+```shell
+vi /etc/sysconfig/network
+
+NETWORKING=yes
+HOSTNAME=KG-FMS-226
+
+NETWORKING=yes
+HOSTNAME=KG-FMS-227
+
+NETWORKING=yes
+HOSTNAME=KG-FMS-228
+```
+
+rpm 离线安装 ntp
+
+```
+# 检查是否已安装有ntp
+rpm -qa|grep ntp
+```
+
+
+
 
 
 
@@ -792,3 +923,8 @@ sysctl -p
 [Cloudera Manager安装 & 搭建CDH集群](https://blog.csdn.net/oschina_41140683/article/details/81211635)
 
 [centos7 无法启动网络(service network restart)错误解决办法](https://www.cnblogs.com/spmt/p/10662243.html)
+
+[Cloudera Navigator介绍与安装](https://cloud.tencent.com/developer/article/1078927)
+
+[Navigator的使用](https://cloud.tencent.com/developer/article/1079092)
+
