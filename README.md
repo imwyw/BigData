@@ -6,4 +6,5 @@
     * [HDP](./Base/HDP.md)
     * [CDH](./Base/CDH.md)
     * [Kettle](./Base/Kettle.md)
+    * [ELK](./Base/ELK.md)
 
