@@ -3,7 +3,10 @@
 ## docker-elk 
 
 ```shell
+# https://hub.docker.com/r/sebp/elk 各版本地址
 docker pull sebp/elk:660
+
+docker pull sebp/elk:7.17.1
 
 # 最大内存 512Mb
 echo "vm.max_map_count=524288" > /etc/sysctl.conf
@@ -17,7 +20,7 @@ docker run -dit --name elk \
     -p 5044:5044 \
     -v /opt/elk-data:/var/lib/elasticsearch \
     -v /etc/localtime:/etc/localtime \
-    sebp/elk:660
+    sebp/elk:7.17.1
 
 # 动态修改为 自动重启
 docker update --restart=always elk
@@ -29,7 +32,6 @@ docker update --restart=always elk
 - 5044：logstash beat端口
 
 ## kibana
-
 
 
 ## logstash
@@ -143,7 +145,7 @@ logback-spring.xml配置
   <springProperty name="LOG_STASH_HOST" scope="context" source="logstash.host"
     defaultValue="192.168.217.150"/>
 
-  <!--INFO日志输出到文件-->
+  <!--INFO日志输出到Logstash -->
   <appender name="LOG_STASH_INFO" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
     <destination>${LOG_STASH_HOST}:5044</destination>
     <encoder chartset="UTF-8" class="net.logstash.logback.encoder.LogstashEncoder">
@@ -159,6 +161,14 @@ logback-spring.xml配置
     </encoder>
   </appender>
 
+```
+
+### kibana配置
+
+【/opt/kibana/config/kibana.yml】
+
+```yml
+server.publicBaseUrl: "http://127.0.0.1:5601"
 ```
 
 ### logstash管道配置
@@ -190,4 +200,6 @@ output {
 }
 ```
 
-重启docker容器，logstash conf生效。
+重启 docker 容器， logstash conf 生效。
+
+
