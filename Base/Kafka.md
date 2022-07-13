@@ -7,6 +7,7 @@
     - [zookeeper-web](#zookeeper-web)
     - [kafka](#kafka-1)
     - [kafka-manager](#kafka-manager)
+  - [Kafka架构](#kafka架构)
 
 <!-- /TOC -->
 
@@ -97,6 +98,7 @@ docker pull bitnami/kafka
 # 集群节点1
 docker run --name kafka01 \
   -p 9092:9092 \
+  -e KAFKA_BROKER_ID=1 \
   -e KAFKA_ZOOKEEPER_CONNECT=192.168.217.150:2181 \
   -e ALLOW_PLAINTEXT_LISTENER=yes \
   -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
@@ -111,12 +113,12 @@ docker run --name kafka01 \
 docker exec -it kafka01 bash
 
 cd /opt/bitnami/kafka/bin
-./kafka-console-producer.sh --broker-list localhost:9092 --topic test
+./kafka-console-producer.sh --broker-list localhost:9092 --topic kfk1
 > hello wang
 > halo halo
 
 # 显示接收的消息
-./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic test --from-beginning
+./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic kfk1 --from-beginning
 
 ```
 
@@ -126,6 +128,7 @@ cd /opt/bitnami/kafka/bin
   # 集群节点2
 docker run --name kafka02 \
   -p 9093:9093 \
+  -e KAFKA_BROKER_ID=2 \
   -e KAFKA_ZOOKEEPER_CONNECT=192.168.217.150:2181 \
   -e ALLOW_PLAINTEXT_LISTENER=yes \
   -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9093 \
@@ -159,6 +162,11 @@ docker run --name kfk-manager \
 
 ![](./../assets/BigData/2022-07-11-16-51-51.png)
 
+
+<a id="markdown-kafka架构" name="kafka架构"></a>
+## Kafka架构
+
+![](../assets/BigData/2022-07-12-09-35-52.png)
 
 ---
 
