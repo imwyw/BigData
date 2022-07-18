@@ -8,4 +8,5 @@
     * [Kettle](./Base/Kettle.md)
     * [ELK](./Base/ELK.md)
     * [Kafka](./Base/Kafka.md)
+    * [K8S](./Base/K8S.md)
 
