@@ -14,6 +14,11 @@
     - [kubeadm 配置(仅在 master 节点执行)](#kubeadm-配置仅在-master-节点执行)
     - [kubectl节点](#kubectl节点)
     - [安装Pod网络插件（CNI）](#安装pod网络插件cni)
+    - [查看pod状态](#查看pod状态)
+  - [deployment 测试](#deployment-测试)
+  - [安装 Kubernetes-Dashboard](#安装-kubernetes-dashboard)
+  - [kubectl](#kubectl)
+    - [kubectl命令](#kubectl命令)
 
 <!-- /TOC -->
 
@@ -23,11 +28,19 @@
 <a id="markdown-概述" name="概述"></a>
 ## 概述
 
+Pod 是一组容器（可包含一个或多个应用程序容器），以及共享存储（卷 Volumes）、IP 地址和有关如何运行容器的信息。
+
+Pod（容器组）总是在 Node（节点） 上运行。Node（节点）是 kubernetes 集群中的计算机，可以是虚拟机或物理机。每个 Node（节点）都由 master 管理。
+
+Node、Deployment、Pod、Service
+
 kubectl：是 Kubernetes 的命令行工具，人们通常通过它与 Kubernetes 进行交互。
 
 Kubelet：是 kubernetes 工作节点上的一个代理组件，运行在每个节点上。
 
 Kubeadm：是一个提供了 kubeadm init 和 kubeadm join 的工具， 作为创建 Kubernetes 集群的"快捷途径" 的最佳实践（用于创建集群）。
+
+
 
 <a id="markdown-环境基础配置所有节点" name="环境基础配置所有节点"></a>
 ## 环境基础配置（所有节点）
@@ -277,6 +290,167 @@ kubectl -n kube-system get pods -o wide
 journalctl -f -u kubelet.service
 ```
 
+<a id="markdown-查看pod状态" name="查看pod状态"></a>
+### 查看pod状态
+
+```shell
+# 查看集群节点信息
+kubectl get node
+
+[root@master ~]# kubectl get node
+NAME     STATUS   ROLES    AGE   VERSION
+master   Ready    master   16m   v1.17.0
+node01   Ready    <none>   12m   v1.17.0
+node02   Ready    <none>   12m   v1.17.0
+node03   Ready    <none>   12m   v1.17.0
+
+```
+
+<a id="markdown-deployment-测试" name="deployment-测试"></a>
+## deployment 测试
+
+```shell
+
+[root@master ~]# kubectl create deployment nginx --image=nginx
+deployment.apps/nginx created
+
+[root@master ~]# kubectl expose deployment nginx --port=80 --type=NodePort
+service/nginx exposed
+
+# 正在创建
+[root@master ~]# kubectl get pods,svc
+NAME                         READY   STATUS              RESTARTS   AGE
+pod/nginx-86c57db685-6cmg4   0/1     ContainerCreating   0          41s
+
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)        AGE
+service/kubernetes   ClusterIP   10.1.0.1     <none>        443/TCP        13m
+service/nginx        NodePort    10.1.40.0    <none>        80:31121/TCP   6s
+
+# 创建完成
+[root@master ~]# kubectl get pods,svc
+NAME                         READY   STATUS    RESTARTS   AGE
+pod/nginx-86c57db685-6cmg4   1/1     Running   0          108s
+
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)        AGE
+service/kubernetes   ClusterIP   10.1.0.1     <none>        443/TCP        14m
+service/nginx        NodePort    10.1.40.0    <none>        80:31121/TCP   73s
+```
+
+访问 http://192.168.217.150:31121
+
+<a id="markdown-安装-kubernetes-dashboard" name="安装-kubernetes-dashboard"></a>
+## 安装 Kubernetes-Dashboard
+
+Kubernetes-Dashboard 是一个 管理 Kubernetes 集群的 Web UI，跟 kubectl 一样，其后端是 API-Server，使用在线的 YAML 文件部署 Kubernetes-Dashboard ：
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.2.0/aio/deploy/recommended.yaml
+
+kubectl get pods --namespace=kubernetes-dashboard
+
+kubectl get services --namespace=kubernetes-dashboard
+```
+
+由于其网络默认是 NodePort 的方式，没有配置外界打开，所以为了能够被外界访问，可以修改其 service：
+
+```bash
+kubectl edit service kubernetes-dashboard --namespace=kubernetes-dashboard
+```
+
+```bash
+  ports:
+  - nodePort: 30633 # 新增此行
+    port: 443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    k8s-app: kubernetes-dashboard
+  sessionAffinity: None
+  type: NodePort # 修改此行
+
+```
+
+在集群内网可以通过 443 访问，在外网可以通过 30633 访问，访问方式是 https。
+
+通过下面这条命令我们可以查看 Token：
+
+```bash
+kubectl -n kube-system describe $(kubectl -n kube-system get secret -n kube-system -o name | grep namespace) | grep token
+```
+
+
+<a id="markdown-kubectl" name="kubectl"></a>
+## kubectl
+
+<a id="markdown-kubectl命令" name="kubectl命令"></a>
+### kubectl命令
+
+![](../assets/BigData/2022-07-18-17-02-30.png)
+
+![](../assets/BigData/2022-07-18-17-04-37.png)
+
+
+```shell
+# 部署应用
+kubectl apply -f app.yaml
+
+# 查看所有命名空间 pod
+kubectl get pods -A
+
+# 查看 pod 包含所有附加信息
+kubectl get pod -o wide
+
+# 过滤掉系统的命名空间 pod
+kubectl get pod -A |grep -v kube-system
+
+# 过滤掉系统命名空间的pod 节点信息
+kubectl get pod -A -o yaml |grep '^    n'|grep -v nodeSelector|sed 'N;N;s/\n/ /g'|grep -v kube-system
+
+# 查看 pod 名称
+kubectl describe pod pod-name
+
+# 查看 svc 详情
+kubectl describe svc svc-name
+
+# 重新创建 pod
+kubectl get pod pod名称 -n 命名空间名称 -o yaml | kubectl replace --force -f -
+
+# 重新部署 deployment
+kubectl rollout restart deployment -n your-namespace xxx-deployment
+
+# 查看 log
+kubectl logs pod-name
+
+# 进入 Pod 容器终端， -c container-name 可以指定进入哪个容器。
+kubectl exec -it pod-name -- bash
+
+# 伸缩扩展副本
+kubectl scale deployment deploy-name --replicas=5
+
+# 把集群内端口映射到节点
+kubectl port-forward pod-name 8090:8080
+
+# 查看历史
+kubectl rollout history deployment deploy-name
+
+# 回到上个版本
+kubectl rollout undo deployment deploy-name
+
+# 回到指定版本
+kubectl rollout undo deployment deploy-name --to-revision=2
+
+# 删除部署
+kubectl delete deployment deploy-name
+
+# 导出yaml配置到文件
+kubectl get deployment deploy-name -o yaml > file-name.yaml
+
+# 指定端口暴露服务
+kubectl expose deployment nginx --port=80 --target-port=8000
+
+```
+
+
 
 ---
 
@@ -285,4 +459,13 @@ journalctl -f -u kubelet.service
 [使用 kubeadm 创建集群](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)
 
 [对 kubeadm 进行故障排查](https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/troubleshooting-kubeadm/)
+
+[Kubernetes教程](https://k8s.easydoc.net/docs/dRiQjyTY/28366845/6GiNOzyZ/9EX8Cp45)
+
+[minikube start](https://minikube.sigs.k8s.io/docs/start/)
+
+[Kuboard-Kubernetes教程](https://kuboard.cn/learning/)
+
+
+
 
