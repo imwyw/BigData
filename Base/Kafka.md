@@ -8,6 +8,9 @@
     - [kafka](#kafka-1)
     - [kafka-manager](#kafka-manager)
   - [Kafka架构](#kafka架构)
+    - [生产消费](#生产消费)
+    - [单播多播](#单播多播)
+    - [主题和分区](#主题和分区)
 
 <!-- /TOC -->
 
@@ -167,6 +170,67 @@ docker run --name kfk-manager \
 ## Kafka架构
 
 ![](../assets/BigData/2022-07-12-09-35-52.png)
+
+
+<a id="markdown-生产消费" name="生产消费"></a>
+### 生产消费
+
+```shell
+cd /opt/bitnami/kafka/bin
+
+# 发消息
+./kafka-console-producer.sh --broker-list 192.168.217.151:9092 --topic topic_kfk1
+
+# 消息消费，从头开始 --from-beginning
+./kafka-console-consumer.sh --bootstrap-server 192.168.217.151:9092 --topic topic_kfk1 --from-beginning
+# 消息偏移消费，从最新开始
+./kafka-console-consumer.sh --bootstrap-server 192.168.217.151:9092 --topic topic_kfk1
+
+```
+
+<a id="markdown-单播多播" name="单播多播"></a>
+### 单播多播
+
+```shell
+cd /opt/bitnami/kafka/bin
+
+# 发消息
+./kafka-console-producer.sh --broker-list 192.168.217.151:9092 --topic topic_kfk1
+
+# 单播消费者1
+./kafka-console-consumer.sh --bootstrap-server 192.168.217.151:9092 --consumer-property group.id=group1 --topic topic_kfk1
+# 单播消费者2
+./kafka-console-consumer.sh --bootstrap-server 192.168.217.151:9092 --consumer-property group.id=group1 --topic topic_kfk1
+# 多播消费者 消费组不一样
+./kafka-console-consumer.sh --bootstrap-server 192.168.217.151:9092 --consumer-property group.id=group2 --topic topic_kfk1
+
+
+```
+
+单播模式下，同一个topic同一个消费组group下单一消费（rebalance），只有一个消费者可收到。
+
+```shell
+
+# 消费者有哪些消费组
+./kafka-consumer-groups.sh --bootstrap-server 192.168.217.151:9092 --list
+
+./kafka-consumer-groups.sh --bootstrap-server 192.168.217.151:9092 --describe --all-groups
+
+./kafka-consumer-groups.sh --bootstrap-server 192.168.217.151:9092 --describe --group group1
+```
+
+<a id="markdown-主题和分区" name="主题和分区"></a>
+### 主题和分区
+
+主题Topic是逻辑概念，将消息进行分类。
+
+
+
+
+
+
+
+
 
 ---
 
