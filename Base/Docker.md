@@ -168,6 +168,9 @@ docker run
 # 查看所有容器
 docker ps -a
 
+# 查看容器启动命令
+docker ps -a --no-trunc
+
 # 通过容器id启动容器
 docker start [容器名/容器id]
 

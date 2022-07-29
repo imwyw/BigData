@@ -11,6 +11,11 @@
     - [生产消费](#生产消费)
     - [单播多播](#单播多播)
     - [主题和分区](#主题和分区)
+  - [SpringBoot集成](#springboot集成)
+    - [server配置确认](#server配置确认)
+    - [pom和config](#pom和config)
+    - [生产和消费](#生产和消费)
+    - [带回调的生产](#带回调的生产)
 
 <!-- /TOC -->
 
@@ -104,7 +109,7 @@ docker run --name kafka01 \
   -e KAFKA_BROKER_ID=1 \
   -e KAFKA_ZOOKEEPER_CONNECT=192.168.217.150:2181 \
   -e ALLOW_PLAINTEXT_LISTENER=yes \
-  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.217.151:9092 \
   -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 \
   -d bitnami/kafka
 
@@ -134,7 +139,7 @@ docker run --name kafka02 \
   -e KAFKA_BROKER_ID=2 \
   -e KAFKA_ZOOKEEPER_CONNECT=192.168.217.150:2181 \
   -e ALLOW_PLAINTEXT_LISTENER=yes \
-  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9093 \
+  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://192.168.217.151:9093 \
   -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9093 \
   -d bitnami/kafka
 ```
@@ -144,7 +149,7 @@ docker run --name kafka02 \
 ```
 listeners=PLAINTEXT://0.0.0.0:9093
 
-advertised.listeners=PLAINTEXT://localhost:9093
+advertised.listeners=PLAINTEXT://192.168.217.151:9093
 ```
 
 <a id="markdown-kafka-manager" name="kafka-manager"></a>
@@ -224,6 +229,205 @@ cd /opt/bitnami/kafka/bin
 
 主题Topic是逻辑概念，将消息进行分类。
 
+
+
+
+
+<a id="markdown-springboot集成" name="springboot集成"></a>
+## SpringBoot集成
+
+<a id="markdown-server配置确认" name="server配置确认"></a>
+### server配置确认
+
+确认kafka配置【/opt/bitnami/kafka/config/server.properties】，该配置文件修改无效，在创建容器时做调整：
+
+```bash
+advertised.listeners=PLAINTEXT://192.168.217.151:9092
+```
+
+```bash
+advertised.listeners=PLAINTEXT://192.168.217.151:9093
+```
+
+<a id="markdown-pom和config" name="pom和config"></a>
+### pom和config
+
+springboot项目添加pom
+
+```xml
+<dependency>
+    <groupId>org.springframework.kafka</groupId>
+    <artifactId>spring-kafka</artifactId>
+</dependency>
+```
+
+添加配置文件【application.properties】
+
+```properties
+###########【Kafka集群】###########
+spring.kafka.bootstrap-servers=192.168.217.151:9092,192.168.217.151:9093
+###########【初始化生产者配置】###########
+# 重试次数
+spring.kafka.producer.retries=0
+# 应答级别:多少个分区副本备份完成时向生产者发送ack确认(可选0、1、all/-1)
+spring.kafka.producer.acks=1
+# 批量大小
+spring.kafka.producer.batch-size=16384
+# 提交延时
+spring.kafka.producer.properties.linger.ms=0
+# 当生产端积累的消息达到batch-size或接收到消息linger.ms后,生产者就会将消息提交给kafka
+# linger.ms为0表示每接收到一条消息就提交给kafka,这时候batch-size其实就没用了
+
+# 生产端缓冲区大小
+spring.kafka.producer.buffer-memory = 33554432
+# Kafka提供的序列化和反序列化类
+spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer
+spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer
+# 自定义分区器
+# spring.kafka.producer.properties.partitioner.class=com.felix.kafka.producer.CustomizePartitioner
+
+###########【初始化消费者配置】###########
+# 默认的消费组ID
+spring.kafka.consumer.properties.group.id=defaultConsumerGroup
+# 是否自动提交offset
+spring.kafka.consumer.enable-auto-commit=true
+# 提交offset延时(接收到消息后多久提交offset)
+spring.kafka.consumer.auto.commit.interval.ms=1000
+# 当kafka中没有初始offset或offset超出范围时将自动重置offset
+# earliest:重置为分区中最小的offset;
+# latest:重置为分区中最新的offset(消费分区中新产生的数据);
+# none:只要有一个分区不存在已提交的offset,就抛出异常;
+spring.kafka.consumer.auto-offset-reset=latest
+# 消费会话超时时间(超过这个时间consumer没有发送心跳,就会触发rebalance操作)
+spring.kafka.consumer.properties.session.timeout.ms=120000
+# 消费请求超时时间
+spring.kafka.consumer.properties.request.timeout.ms=180000
+# Kafka提供的序列化和反序列化类
+spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+# 消费端监听的topic不存在时，项目启动会报错(关掉)
+spring.kafka.listener.missing-topics-fatal=false
+# 设置批量消费
+# spring.kafka.listener.type=batch
+# 批量消费每次最多消费多少条消息
+# spring.kafka.consumer.max-poll-records=50
+```
+
+添加配置类【KafkaInitialConfiguration】：
+
+```java
+@Configuration
+public class KafkaInitialConfiguration {
+
+  // 创建一个名为testtopic的Topic并设置分区数为8，分区副本数为2
+  @Bean
+  public NewTopic initialTopic() {
+    return new NewTopic("sp_topic", 8, (short) 2);
+  }
+
+  // 如果要修改分区数，只需修改配置值重启项目即可
+  // 修改分区数并不会导致数据的丢失，但是分区数只能增大不能减小
+  //  @Bean
+  //  public NewTopic updateTopic() {
+  //    return new NewTopic("sp_topic", 10, (short) 2);
+  //  }
+
+}
+```
+
+
+<a id="markdown-生产和消费" name="生产和消费"></a>
+### 生产和消费
+
+生产控制器【KafkaProducer】
+
+```java
+@RestController
+@AllArgsConstructor
+public class KafkaProducer {
+
+  private KafkaTemplate<String, Object> kafkaTemplate;
+
+  /**
+   * 发送消息
+   * @param message
+   */
+  @GetMapping("/kafka/sendString")
+  public void sendMessage1(@RequestParam("message") String message) {
+    kafkaTemplate.send("sp_topic", message);
+  }
+
+}
+```
+
+简单消费控制器【KafkaConsumer】
+
+```java
+@RestController
+@AllArgsConstructor
+public class KafkaConsumer {
+
+  /**
+   * 消费监听
+   *
+   * @param record
+   */
+  @KafkaListener(topics = {"sp_topic"})
+  public void onMessage1(ConsumerRecord<?, ?> record) {
+    // 消费的哪个topic、partition的消息,打印出消息内容
+    System.out.println("简单消费：" + record.topic() + "-" + record.partition() + "-" + record.value());
+  }
+  
+}
+```
+
+也可以进入kafka容器显示消息队列
+
+```bash
+cd /opt/bitnami/kafka/bin
+
+./kafka-console-consumer.sh --bootstrap-server 192.168.217.151:9092 --topic sp_topic --from-beginning
+```
+
+<a id="markdown-带回调的生产" name="带回调的生产"></a>
+### 带回调的生产
+
+消息发送的回调
+
+```java
+  @GetMapping("/kafka/callbackOne")
+  public void sendMessage2(@RequestParam("message") String message) {
+    kafkaTemplate.send("sp_topic", message).addCallback(success -> {
+      // 消息发送到的topic
+      String topic = success.getRecordMetadata().topic();
+      // 消息发送到的分区
+      int partition = success.getRecordMetadata().partition();
+      // 消息在分区内的offset
+      long offset = success.getRecordMetadata().offset();
+      System.out.println("发送消息成功:" + topic + "-" + partition + "-" + offset);
+    }, failure -> {
+      System.out.println("发送消息失败:" + failure.getMessage());
+    });
+  }
+
+  @GetMapping("/kafka/callbackTwo")
+  public void sendMessage3(@RequestParam("message") String message) {
+    kafkaTemplate.send("sp_topic", message)
+        .addCallback(new ListenableFutureCallback<SendResult<String, Object>>() {
+          @Override
+          public void onFailure(Throwable ex) {
+            System.out.println("发送消息失败：" + ex.getMessage());
+          }
+
+          @Override
+          public void onSuccess(SendResult<String, Object> result) {
+            System.out.println("发送消息成功：" + result.getRecordMetadata().topic() + "-"
+                + result.getRecordMetadata().partition() + "-" + result.getRecordMetadata()
+                .offset());
+          }
+        });
+  }
+```
 
 
 
