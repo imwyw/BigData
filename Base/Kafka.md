@@ -11,6 +11,7 @@
     - [生产消费](#生产消费)
     - [单播多播](#单播多播)
     - [主题和分区](#主题和分区)
+    - [分区消费组消费者消费](#分区消费组消费者消费)
   - [SpringBoot集成](#springboot集成)
     - [server配置确认](#server配置确认)
     - [pom和config](#pom和config)
@@ -229,7 +230,23 @@ cd /opt/bitnami/kafka/bin
 
 主题Topic是逻辑概念，将消息进行分类。
 
+通过partition将一个topic中的消息分区存储，优势：
 
+- 避免单一文件过大
+- 提升读写吞吐量，读写在多个分区可以同时
+
+kafka内部创建 `__consumer_offsets` 默认50个分区，用于存放消费者消费某主题的偏移量。
+
+消费者消费时候，上报当前 `offset` 偏移量至默认主题 `__consumer_offesets`。
+
+<a id="markdown-分区消费组消费者消费" name="分区消费组消费者消费"></a>
+### 分区消费组消费者消费
+
+一个partition只能被一个消费组里的某一个消费者消费，从而保证消费者顺序。
+
+一个消费者是可以消费多个partition的。
+
+kafka只保证同一partition范围内的局部顺序性，不能在同topic不同partition保证顺序性。
 
 
 
@@ -271,15 +288,16 @@ spring.kafka.bootstrap-servers=192.168.217.151:9092,192.168.217.151:9093
 spring.kafka.producer.retries=0
 # 应答级别:多少个分区副本备份完成时向生产者发送ack确认(可选0、1、all/-1)
 spring.kafka.producer.acks=1
-# 批量大小
+# 生产端缓冲区大小 32Mb 存放发送的消息
+spring.kafka.producer.buffer-memory = 33554432
+# 批量大小 本地线程从缓冲区每次拉取 16Kb 数据发送
 spring.kafka.producer.batch-size=16384
-# 提交延时
-spring.kafka.producer.properties.linger.ms=0
+# 提交延时 如果数据不满 batch-size 则指定时间后也发送
+spring.kafka.producer.properties.linger.ms=10
 # 当生产端积累的消息达到batch-size或接收到消息linger.ms后,生产者就会将消息提交给kafka
 # linger.ms为0表示每接收到一条消息就提交给kafka,这时候batch-size其实就没用了
 
-# 生产端缓冲区大小
-spring.kafka.producer.buffer-memory = 33554432
+
 # Kafka提供的序列化和反序列化类
 spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer
 spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer
