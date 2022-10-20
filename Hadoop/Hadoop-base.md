@@ -13,8 +13,8 @@
     - [克隆节点](#克隆节点)
   - [运行模式及准备](#运行模式及准备)
     - [运行模式](#运行模式)
-    - [脚本下发](#脚本下发)
     - [免密登录设置](#免密登录设置)
+    - [脚本下发](#脚本下发)
   - [配置集群](#配置集群)
     - [集群基础](#集群基础)
     - [配置【core-site.xml】](#配置core-sitexml)
@@ -26,6 +26,17 @@
       - [配置works](#配置works)
       - [初始化NameNode](#初始化namenode)
       - [启动hdfs](#启动hdfs)
+  - [集群应用](#集群应用)
+    - [集群测试](#集群测试)
+      - [配置历史服务器](#配置历史服务器)
+      - [日志收集](#日志收集)
+      - [集群重新初始化](#集群重新初始化)
+    - [集群的常用操作](#集群的常用操作)
+      - [启停](#启停)
+      - [启停脚本](#启停脚本)
+      - [jps脚本](#jps脚本)
+      - [集群常用端口](#集群常用端口)
+      - [时间同步](#时间同步)
 
 <!-- /TOC -->
 
@@ -258,6 +269,27 @@ Hadoop运行模式包括：
 - 伪分布式模式
 - 完全分布式模式
 
+<a id="markdown-免密登录设置" name="免密登录设置"></a>
+### 免密登录设置
+
+```shell
+# 远程登录 hadoop103 机器，会生成 ~/.ssh 隐藏文件夹
+ssh hadoop103
+
+cd ~/.ssh
+
+# 生成公钥和密钥 默认参数（直接回车即可）
+ssh-keygen -t rsa
+
+# 拷贝公钥到免密登录的机器
+ssh-copy-id hadoop102 # 本机也要拷贝，否则hadoop启动namenode报无权限
+ssh-copy-id hadoop103
+ssh-copy-id hadoop104
+
+```
+
+集群内各节点最好都设置下ssh免密登录，以免后期从 hadoop103 登录到 hadoop102 时无权限
+
 <a id="markdown-脚本下发" name="脚本下发"></a>
 ### 脚本下发
 
@@ -313,27 +345,6 @@ cd /opt/software
 # 测试文件同步至其他节点同路径
 xsync /opt/software/test_xia_fa
 ```
-
-<a id="markdown-免密登录设置" name="免密登录设置"></a>
-### 免密登录设置
-
-```shell
-# 远程登录 hadoop103 机器，会生成 ~/.ssh 隐藏文件夹
-ssh hadoop103
-
-cd ~/.ssh
-
-# 生成公钥和密钥 默认参数（直接回车即可）
-ssh-keygen -t rsa
-
-# 拷贝公钥到免密登录的机器
-ssh-copy-id hadoop102 # 本机也要拷贝，否则hadoop启动namenode报无权限
-ssh-copy-id hadoop103
-ssh-copy-id hadoop104
-
-```
-
-集群内各节点最好都设置下ssh免密登录，以免后期从 hadoop103 登录到 hadoop102 时无权限
 
 <a id="markdown-配置集群" name="配置集群"></a>
 ## 配置集群
@@ -570,6 +581,8 @@ total size is 107,790  speedup is 104.85
 <a id="markdown-启动hdfs" name="启动hdfs"></a>
 #### 启动hdfs
 
+如果使用的是root用户操作，则需要补充以下环境变量，建议在专门用户下进行操作。
+
 ```shell
 vi /etc/profile.d/my_env.sh
 
@@ -608,12 +621,318 @@ export YARN_NODEMANAGER_USER=root
 [root@hadoop103 hadoop-3.1.3]# sbin/start-yarn.sh
 ```
 
-Web端查看HDFS的NameNode
+Web端查看HDFS的 NameNode
 - 浏览器中输入： http://hadoop102:9870 或者 http://192.168.217.102:9870/
 - 查看HDFS上存储的数据信息
 
-Web端查看YARN的ResourceManager
+Web端查看YARN的 ResourceManager
 - 浏览器中输入： http://hadoop103:8088 或者 http://192.168.217.103:8088/
 - 查看YARN上运行的Job信息
+
+
+<a id="markdown-集群应用" name="集群应用"></a>
+## 集群应用
+
+<a id="markdown-集群测试" name="集群测试"></a>
+### 集群测试
+
+```shell
+# 根目录下创建 input 通过 NameNode 地址查看新增的 input 文件夹
+hadoop fs -mkdir /input
+
+# 执行测试程序
+hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar wordcount /input /output
+
+```
+
+<a id="markdown-配置历史服务器" name="配置历史服务器"></a>
+#### 配置历史服务器
+
+```shell
+cd /opt/module/hadoop-3.1.3/etc/hadoop
+vi mapred-site.xml
+```
+
+内容如下：
+
+```shell
+
+<!-- 历史服务器端地址 -->
+<property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>hadoop102:10020</value>
+</property>
+
+<!-- 历史服务器web端地址 -->
+<property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>hadoop102:19888</value>
+</property>
+
+```
+
+下发配置：
+
+```shell
+xsync $HADOOP_HOME/etc/hadoop/mapred-site.xml
+
+# 启动历史服务器
+[atguigu@hadoop102 hadoop-3.1.3]$ mapred --daemon start historyserver
+[atguigu@hadoop102 hadoop-3.1.3]$ jps
+29569 DataNode
+63857 Jps
+30997 NodeManager
+63708 JobHistoryServer
+29358 NameNode
+
+```
+
+<a id="markdown-日志收集" name="日志收集"></a>
+#### 日志收集
+
+```shell
+[atguigu@hadoop102 ~]$ cd $HADOOP_HOME/etc/hadoop/
+
+[atguigu@hadoop102 hadoop]$ vi yarn-site.xml
+
+```
+
+配置内容如下：
+
+```xml
+    <!-- 开启日志聚集功能 -->
+    <property>
+        <name>yarn.log-aggregation-enable</name>
+        <value>true</value>
+    </property>
+    <!-- 设置日志聚集服务器地址 -->
+    <property>  
+        <name>yarn.log.server.url</name>  
+        <value>http://hadoop102:19888/jobhistory/logs</value>
+    </property>
+    <!-- 设置日志保留时间为7天 -->
+    <property>
+        <name>yarn.log-aggregation.retain-seconds</name>
+        <value>604800</value>
+    </property>
+```
+
+分发配置，重启yarn，启动测试
+
+```shell
+[atguigu@hadoop102 hadoop]$ xsync $HADOOP_HOME/etc/hadoop/yarn-site.xml
+[atguigu@hadoop102 hadoop]$ cd $HADOOP_HOME
+
+# 停掉 102上 historyserver，等yarn重启后再启动 historyserver 
+[atguigu@hadoop102 hadoop-3.1.3]$ mapred --daemon stop historyserver
+
+# 重启103上的 yarn
+[atguigu@hadoop103 hadoop-3.1.3]$ sbin/stop-yarn.sh
+[atguigu@hadoop103 hadoop-3.1.3]$ sbin/start-yarn.sh
+
+# 启动 102 上的 historyserver
+[atguigu@hadoop102 hadoop-3.1.3]$ mapred --daemon start historyserver
+
+# 执行测试程序
+[atguigu@hadoop102 hadoop-3.1.3]$ hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar wordcount /input /output2
+```
+
+<a id="markdown-集群重新初始化" name="集群重新初始化"></a>
+#### 集群重新初始化
+
+当遇到一些问题时，可以选择重新初始化节点
+
+```shell
+[atguigu@hadoop102 ~]$ cd /opt/module/hadoop-3.1.3
+# 停掉进程 个别进程也可以通过 kill -9 pid 方式杀死
+[atguigu@hadoop102 hadoop-3.1.3]$ sbin/stop-dfs.sh
+
+[atguigu@hadoop103 ~]$ cd /opt/module/hadoop-3.1.3
+# 停掉进程 个别进程也可以通过 kill -9 pid 方式杀死
+[atguigu@hadoop103 hadoop-3.1.3]$ sbin/stop-yarn.sh
+
+# 删除所有节点的 data 和 logs 文件夹，然后进行初始化
+[atguigu@hadoop102 hadoop-3.1.3]$ rm -rf data/ logs/
+[atguigu@hadoop103 hadoop-3.1.3]$ rm -rf data/ logs/
+[atguigu@hadoop104 hadoop-3.1.3]$ rm -rf data/ logs/
+
+# 重新初始 namenode 信息
+[root@hadoop102 hadoop-3.1.3]# hdfs namenode -format
+
+```
+
+<a id="markdown-集群的常用操作" name="集群的常用操作"></a>
+### 集群的常用操作
+
+<a id="markdown-启停" name="启停"></a>
+#### 启停
+
+```shell
+# 启动、停止 hdfs
+start-dfs.sh/stop-dfs.sh
+
+# 启动、停止 yarn
+start-yarn.sh/stop-yarn.sh
+
+# 分别启动 hdfs 组件
+hdfs --daemon start/stop namenode/datanode/secondarynamenode
+
+# 启动停止 yarn
+yarn --daemon start/stop  resourcemanager/nodemanager
+```
+
+<a id="markdown-启停脚本" name="启停脚本"></a>
+#### 启停脚本
+
+```shell
+cd /home/atguigu/bin
+vi myhadoop.sh
+```
+
+```shell
+#!/bin/bash
+
+if [ $# -lt 1 ]
+then
+    echo "No Args Input..."
+    exit ;
+fi
+
+case $1 in
+"start")
+        echo " =================== 启动 hadoop集群 ==================="
+
+        echo " --------------- 启动 hdfs ---------------"
+        ssh hadoop102 "/opt/module/hadoop-3.1.3/sbin/start-dfs.sh"
+        echo " --------------- 启动 yarn ---------------"
+        ssh hadoop103 "/opt/module/hadoop-3.1.3/sbin/start-yarn.sh"
+        echo " --------------- 启动 historyserver ---------------"
+        ssh hadoop102 "/opt/module/hadoop-3.1.3/bin/mapred --daemon start historyserver"
+;;
+"stop")
+        echo " =================== 关闭 hadoop集群 ==================="
+
+        echo " --------------- 关闭 historyserver ---------------"
+        ssh hadoop102 "/opt/module/hadoop-3.1.3/bin/mapred --daemon stop historyserver"
+        echo " --------------- 关闭 yarn ---------------"
+        ssh hadoop103 "/opt/module/hadoop-3.1.3/sbin/stop-yarn.sh"
+        echo " --------------- 关闭 hdfs ---------------"
+        ssh hadoop102 "/opt/module/hadoop-3.1.3/sbin/stop-dfs.sh"
+;;
+*)
+    echo "Input Args Error..."
+;;
+esac
+
+```
+
+<a id="markdown-jps脚本" name="jps脚本"></a>
+#### jps脚本
+
+```shell
+cd /home/atguigu/bin
+vi jpsall
+```
+
+```shell
+#!/bin/bash
+
+for host in hadoop102 hadoop103 hadoop104
+do
+        echo =============== $host ===============
+        ssh $host jps 
+done
+
+```
+
+
+<a id="markdown-集群常用端口" name="集群常用端口"></a>
+#### 集群常用端口
+
+hadoop3.x 常用端口
+
+- NameNode内部常用端口:8020/9000/9820
+- NameNode用户查询端口:9870
+- Yarn查看任务运行:8088
+- 历史服务器:19888
+
+<a id="markdown-时间同步" name="时间同步"></a>
+#### 时间同步
+
+**主要节点配置**
+
+修改【/etc/ntp.conf】
+
+```shell
+# 切换用户到 root
+[atguigu@hadoop102 ~]$ su root
+...
+[root@hadoop102 ~]$ su root
+
+# 查看时间服务器 ntpd 服务情况
+[root@hadoop102 ~]# systemctl status ntpd
+[root@hadoop102 ~]# systemctl start ntpd
+[root@hadoop102 ~]# systemctl is-enabled ntpd 
+
+[root@hadoop102 ~]# vi /etc/ntp.conf
+```
+
+取消注释 `restrict 192.168.217.0 mask 255.255.255.0 nomodify notrap`
+
+指定网段上的所有机器可以从这台机器上查询和同步时间。
+
+注释掉网络时间同步配置：
+
+```shell
+#server 0.centos.pool.ntp.org iburst
+#server 1.centos.pool.ntp.org iburst
+#server 2.centos.pool.ntp.org iburst
+#server 3.centos.pool.ntp.org iburst
+```
+
+添加配置，采用本地时间作为时间服务器为集群中的其他节点提供时间同步
+
+```shell
+server 127.127.1.0
+fudge 127.127.1.0 stratum 10
+```
+
+修改【/etc/sysconfig/ntpd】
+
+```shell
+vi /etc/sysconfig/ntpd
+
+# 添加下面配置，硬件时钟和软件时间一起同步
+SYNC_HWCLOCK=yes
+```
+
+配置启动
+
+```shell
+# 重启ntpd
+systemctl stop ntpd
+systemctl start ntpd
+
+# 设置开机启动
+systemctl enable ntpd
+```
+
+**其他节点配置**
+
+在其他节点停止ntpd服务，并同步 【/etc/sysconfig/ntpd】 文件
+
+```shell
+[atguigu@hadoop103 ~]$ sudo systemctl stop ntpd
+[atguigu@hadoop103 ~]$ sudo systemctl disable ntpd
+[atguigu@hadoop104 ~]$ sudo systemctl stop ntpd
+[atguigu@hadoop104 ~]$ sudo systemctl disable ntpd
+
+# hadoop103和hadoop104 配置定时任务
+[atguigu@hadoop103 ~]$ sudo crontab -e
+
+# 维护内容如下
+*/1 * * * * /usr/sbin/ntpdate hadoop102
+
+```
 
 
