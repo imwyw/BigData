@@ -734,7 +734,8 @@ xsync $HADOOP_HOME/etc/hadoop/mapred-site.xml
 [atguigu@hadoop102 hadoop-3.1.3]$ mapred --daemon start historyserver
 
 # 执行测试程序
-[atguigu@hadoop102 hadoop-3.1.3]$ hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar wordcount /input /output2
+[atguigu@hadoop102 hadoop-3.1.3]$ hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar \
+    wordcount /input /output2
 ```
 
 <a id="markdown-集群重新初始化" name="集群重新初始化"></a>
